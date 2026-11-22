@@ -1,0 +1,4 @@
+
+
+# ajustar_modelo(), criterios()
+

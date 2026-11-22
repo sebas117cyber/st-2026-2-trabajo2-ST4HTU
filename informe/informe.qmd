@@ -1,0 +1,34 @@
+---
+title: "Trabajo 2"
+subtitle: "Series de Tiempo — Pregrado en Estadística, UNAL Medellín"
+author: "Sebastian Valencia Botero ; Julian Esteban Ariza Caro "
+date: today
+format:
+  pdf:
+    number-sections: true
+    toc: true
+    fig-width: 6
+    fig-height: 4
+    geometry:
+      - a4paper
+      - margin=1.5cm
+      - landscape
+    include-in-header:
+      text: |
+        \usepackage{tabularx}
+        \usepackage{xcolor}
+        \usepackage{array}
+        \usepackage{graphicx}
+editor: visual
+echo: False
+---
+
+# Serie 1
+
+
+# Serie 2
+
+
+# Serie 3
+
+

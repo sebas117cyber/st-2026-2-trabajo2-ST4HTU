@@ -23,12 +23,316 @@ editor: visual
 echo: False
 ---
 
+```{r, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+library(dplyr)
+library(readr)
+library(lubridate)
+library(tidyverse)
+library(tidyr)
+library(purrr)
+library(tibble)
+library(ggplot2)
+library(forecast)
+library(tseries)
+library(TSA)
+library(lmtest)
+library(patchwork)
+library(stats)
+
+
+```
+
+
+```{r, include=FALSE}
+
+
+source("../R/00-lectura.R")
+source("../R/01-transformacion.R")
+source("../R/02-integracion.R")
+source("../R/03-identificaciones.R")
+source("../R/04-modelos.R")
+source("../R/05-validacion.R")
+
+
+```
+
+
+
+```{r, include=FALSE}
+# funciones Axiliareas
+graficar_serie <- function(datos, titulo, color = "#7AC5CD",
+                           alpha = 0.8, mostrar_puntos = TRUE) {
+  
+  # datos: tibble creado con leer_serie()
+  # titulo: título del gráfico
+  # color: color de la línea y los puntos (hexadecimal o nombre de R)
+  # alpha: transparencia entre 0 (invisible) y 1 (opaco)
+  # mostrar_puntos: si es TRUE dibuja puntos sobre la línea
+  
+  
+  # Validamos que el color sea válido
+  color_ok <- tryCatch(
+    {
+      col2rgb(color)
+      TRUE
+    },
+    error = function(e) FALSE
+  )
+  if (!color_ok) {
+    stop("nombre no es válido. Usa un hexadecimal como '#CD661D' o un nombre de color de R")
+  }
+  
+  # Validamos alpha
+  if (!is.numeric(alpha) || alpha < 0 || alpha > 1) {
+    stop("'alpha' debe ser un número entre 0 y 1")
+  }
+  
+  # Aplicamos la transparencia al color elegido
+  color_final <- adjustcolor(color, alpha.f = alpha)
+  
+  # Información de los atributos
+  fuente <- attr(datos, "fuente")
+  unidad <- attr(datos, "unidad")
+  
+  # Número de observaciones
+  n <- nrow(datos)
+  
+  # Años de la serie, de 2 en 2
+  anio_ini <- as.numeric(format(min(datos$fecha), "%Y"))
+  anio_fin <- as.numeric(format(max(datos$fecha), "%Y"))
+  anios    <- seq(anio_ini, anio_fin, by = 2)
+  cortes   <- as.Date(paste0(anios, "-01-01"))
+  
+  # Gráfico
+  g <- ggplot(datos, aes(x = fecha, y = y)) +
+    geom_line(color = color_final, linewidth = 1.2)
+  
+  if (mostrar_puntos) {
+    g <- g + geom_point(
+      color = color_final,
+      size  = ifelse(n <= 60, 4, 1.5)
+    )
+  }
+  
+  g +
+    scale_x_date(
+      breaks = cortes,
+      labels = format(cortes, "%Y")
+    ) +
+    
+    labs(
+      title   = titulo,
+      x       = "Fecha",
+      y       = unidad,
+      caption = paste("Fuente:", fuente, "| Observaciones:", n)
+    ) +
+    
+    theme_minimal() +
+    
+    theme(
+      axis.line   = element_line(color = "black", linewidth = 0.4),
+      axis.ticks  = element_line(color = "black"),
+      
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor   = element_blank(),
+      panel.grid.major.y = element_line(color = "grey85", linewidth = 0.5),
+      
+      plot.title   = element_text(size = 16, face = "bold", hjust = 0.5),
+      axis.title   = element_text(face = "bold"),
+      axis.text.x  = element_text(angle = 0, hjust = 0.5),
+      plot.caption = element_text(hjust = 0)
+    )
+}
+
+correlograma <- function(datos,m = NULL){
+  
+  # Extraemos la serie numérica
+  datos <- datos$y
+  
+  
+  T <- length(datos) #Numero de observaciones
+  
+  #Valida si m es null o diferente 
+  if(is.null(m)){
+    m <- min(floor(T/4),24)
+  }
+  
+  #-----------Funcion ACF Manual------------------#
+  ACF <- function(datos, h) {
+    
+    T <- length(datos)
+    promedio <- sum(datos) / T
+    denominador <- sum((datos - promedio)^2)
+    
+    producto <- c()
+    for (i in 1:T) {
+      resultado <- datos[i] - promedio
+      producto <- c(producto, resultado)
+    }
+    
+    valor <- c()
+    for (i in 1:(T - h)) {
+      resultado <- producto[i + h] * producto[i]
+      valor <- c(valor, resultado)
+    }
+    
+    acf <- sum(valor) / denominador
+    
+    return(acf)
+  }
+  
+  # Calculamos la ACF manual desde 1 hasta m
+  acf_manual <- c()
+  
+  for (h in 1:m) {
+    resultado <- ACF(datos, h)
+    acf_manual <- c(acf_manual, resultado)
+  }
+  
+  # ACF calculada por R
+  acf_r <- acf(datos, lag.max = m, plot = FALSE)$acf[-1]
+  
+  # Diferencias absolutas entre la ACF manual y la de R
+  diferencias <- abs(acf_manual - acf_r)
+  
+  # Maxima diferencia
+  diferencia_maxima <- max(diferencias)
+  
+  #-----------Calculamos la PACF con la funcion de R---------------#
+  pacf_r <- pacf(datos, lag.max = m, plot = FALSE)$acf
+  
+  # Creamos los datos para graficar la ACF
+  datos_acf <- data.frame(
+    rezago = 1:m,
+    valor = acf_manual
+  )
+  
+  # Creamos los datos para graficar la PACF
+  datos_pacf <- data.frame(
+    rezago = 1:m,
+    valor = as.numeric(pacf_r)
+  )
+  
+  # Calculamos la banda de confianza del 95 %
+  banda <- qnorm((1 + 0.95) / 2) / sqrt(T)
+  
+  # Funcion para crear los graficos ACF y PACF
+  graficar_correlacion <- function(datos, titulo, etiqueta_y) {
+    
+    ggplot(datos, aes(x = rezago, y = valor)) +
+      
+      # Barras verticales
+      geom_segment(
+        aes(xend = rezago, yend = 0)
+      ) +
+      
+      # Linea central
+      geom_hline(yintercept = 0) +
+      
+      # Banda superior
+      geom_hline(
+        yintercept = banda,
+        linetype = "dashed"
+      ) +
+      
+      # Banda inferior
+      geom_hline(
+        yintercept = -banda,
+        linetype = "dashed"
+      ) +
+      
+      labs(
+        title = titulo,
+        x = "Rezago",
+        y = etiqueta_y
+      ) +
+      
+      theme_minimal()
+  }
+  
+  # Grafico de la ACF
+  grafico_acf <- graficar_correlacion(
+    datos_acf,
+    "Función de Autocorrelación (ACF)",
+    "ACF"
+  )
+  
+  # Grafico de la PACF
+  grafico_pacf <- graficar_correlacion(
+    datos_pacf,
+    "Función de Autocorrelación Parcial (PACF)",
+    "PACF"
+  )
+  
+  # Unimos los graficos
+  panel <- grafico_acf / grafico_pacf
+  
+  return(list(acf =acf_manual, panel = panel,diferencia_maxima= diferencia_maxima))
+  
+}
+
+```
+
+
 # Serie 1
+
+
+```{r}
+# Pacientes original
+
+Serie_1 <- leer_serie("../datos/ST4HTU-serie-1.csv", "Red de Salud de Valdeflores", "Pacientes")
+
+```
+
+
+```{r}
+
+graficar_serie(Serie_1, "pacientes_original", mostrar_puntos = FALSE)
+
+```
+
+```{r}
+correlograma(Serie_1)
+```
 
 
 # Serie 2
 
+```{r}
+# Dias de espera promedio para cita
+
+Serie_2 <- leer_serie("../datos/ST4HTU-serie-2.csv", "Red de Salud de Valdeflores", "Dias de espera promedio")
+
+```
+
+
+```{r}
+
+graficar_serie(Serie_2, "Dias de espera promedio", mostrar_puntos = FALSE)
+
+```
+
+```{r}
+correlograma(Serie_2)
+```
+
 
 # Serie 3
 
+```{r}
+# Valor de facturas Original
 
+Serie_3 <- leer_serie("../datos/ST4HTU-serie-3.csv", "Red de Salud de Valdeflores", "millones de pesos")
+
+```
+
+```{r}
+
+graficar_serie(Serie_3, "Valo de las facturas", mostrar_puntos = FALSE)
+
+```
+
+```{r}
+correlograma(Serie_3)
+```

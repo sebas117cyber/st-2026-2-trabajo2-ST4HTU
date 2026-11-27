@@ -296,6 +296,8 @@ graficar_serie(Serie_1, "pacientes_original", mostrar_puntos = FALSE)
 correlograma(Serie_1)
 ```
 
+## transformacion
+
 
 # Serie 2
 

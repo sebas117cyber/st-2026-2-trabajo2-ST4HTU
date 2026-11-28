@@ -52,3 +52,23 @@ perfil_lambda <- function(datos, lambdas = seq(-2, 2, by = 0.05)) {
   
   return(list(lambda_optimo = optimo, ic_95 = ic, perfil = data.frame(lambdas, log_lik)))
 }
+
+
+
+pendiente_dispersion <- function(datos, k = 5) {
+  y    <- if (is.data.frame(datos)) datos$y else datos
+  tam  <- length(y) %/% k                  # tamaño de cada bloque
+  y    <- y[seq_len(k * tam)]              # descarta sobrantes, si los hay
+  bloques <- split(y, rep(seq_len(k), each = tam))
+  
+  tabla <- data.frame(
+    bloque   = seq_len(k),
+    nivel    = unname(sapply(bloques, mean)),
+    desv_dif = unname(sapply(bloques, function(b) sd(diff(b))))
+  )
+  
+  fit  <- lm(log(desv_dif) ~ log(nivel), data = tabla)
+  pend <- unname(coef(fit)[2])
+  
+  list(tabla = tabla, fit = fit, pendiente = pend, lambda = 1 - pend)
+}

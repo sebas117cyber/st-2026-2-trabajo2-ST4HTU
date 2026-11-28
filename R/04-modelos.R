@@ -43,3 +43,29 @@ criterios <- function(ajuste) {
 }
 
 
+
+# Añadido
+# Traduce la especificación determinista a los argumentos de ajustar_modelo()
+#   espec = "none"  : sin constante ni tendencia
+#   espec = "drift" : constante (d = 0) o deriva θ0 (d = 1)
+#   espec = "trend" : recta más ARMA (solo d = 0)
+espec_args <- function(espec = c("none", "drift", "trend"), d) {
+  espec <- match.arg(espec)
+  list(
+    constante = espec != "none" & d == 0,
+    tendencia = (espec == "trend" & d == 0) | (espec == "drift" & d == 1)
+  )
+}
+
+# Tabla de coeficientes con IC del 95 %
+tabla_coef <- function(ajuste, nivel = 0.95) {
+  cf <- ajuste$coeficientes
+  z  <- qnorm((1 + nivel) / 2)
+  tibble(
+    parametro      = rownames(cf),
+    estimacion     = unname(cf[, "estimacion"]),
+    error_estandar = unname(cf[, "error_estandar"]),
+    li             = estimacion - z * error_estandar,
+    ls             = estimacion + z * error_estandar
+  )
+}

@@ -107,3 +107,16 @@ sobreajuste <- function(z, ajuste, lambda = 1, constante = TRUE, tendencia = FAL
     modelo_ma = mod_ma
   ))
 }
+
+
+# Asimetría, curtosis y prueba de Jarque-Bera (JB ~ χ²(2) bajo H0 de normalidad)
+jarque_bera <- function(x) {
+  n    <- length(x)
+  z    <- x - mean(x)
+  s2   <- mean(z^2)
+  asim <- mean(z^3) / s2^(3 / 2)
+  curt <- mean(z^4) / s2^2
+  jb   <- n / 6 * (asim^2 + (curt - 3)^2 / 4)
+  list(asimetria = asim, curtosis = curt, JB = jb, gl = 2,
+       p_valor = pchisq(jb, df = 2, lower.tail = FALSE))
+}

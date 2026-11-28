@@ -43,6 +43,7 @@ editor:
     wrap: 72
 ---
 
+
 ```{r, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 library(dplyr)
@@ -59,9 +60,11 @@ library(TSA)
 library(lmtest)
 library(patchwork)
 library(stats)
+library(kableExtra)
 
 
 ```
+
 
 ```{r, include=FALSE}
 
@@ -75,6 +78,7 @@ source("../R/05-validacion.R")
 
 
 ```
+
 
 ```{r, include=FALSE}
 # funciones Axiliareas
@@ -162,134 +166,49 @@ graficar_serie <- function(datos, titulo, color = "#7AC5CD",
     )
 }
 
-correlograma <- function(datos,m = NULL){
+
+```
+
+
+
+```{r, include=FALSE}
+
+crear_ficha <- function(serie, nombre = "Serie 1", unidad = attr(serie, "unidad")) {
   
-  # Extraemos la serie numérica
-  datos <- datos$y
+  freq <- attr(serie, "frecuencia")
+  if (is.null(freq)) freq <- 1
   
+  frecuencia_label <- switch(as.character(freq),
+                             "12"  = "Mensual",
+                             "4"   = "Trimestral",
+                             "1"   = "Anual",
+                             "52"  = "Semanal",
+                             "365" = "Diaria",
+                             as.character(freq))
   
-  T <- length(datos) #Numero de observaciones
+  fecha_ini <- as.character(min(serie$fecha, na.rm = TRUE))
+  fecha_fin <- as.character(max(serie$fecha, na.rm = TRUE))
+  val       <- serie$y
   
-  #Valida si m es null o diferente 
-  if(is.null(m)){
-    m <- min(floor(T/4),24)
-  }
-  
-  #-----------Funcion ACF Manual------------------#
-  ACF <- function(datos, h) {
-    
-    T <- length(datos)
-    promedio <- sum(datos) / T
-    denominador <- sum((datos - promedio)^2)
-    
-    producto <- c()
-    for (i in 1:T) {
-      resultado <- datos[i] - promedio
-      producto <- c(producto, resultado)
-    }
-    
-    valor <- c()
-    for (i in 1:(T - h)) {
-      resultado <- producto[i + h] * producto[i]
-      valor <- c(valor, resultado)
-    }
-    
-    acf <- sum(valor) / denominador
-    
-    return(acf)
-  }
-  
-  # Calculamos la ACF manual desde 1 hasta m
-  acf_manual <- c()
-  
-  for (h in 1:m) {
-    resultado <- ACF(datos, h)
-    acf_manual <- c(acf_manual, resultado)
-  }
-  
-  # ACF calculada por R
-  acf_r <- acf(datos, lag.max = m, plot = FALSE)$acf[-1]
-  
-  # Diferencias absolutas entre la ACF manual y la de R
-  diferencias <- abs(acf_manual - acf_r)
-  
-  # Maxima diferencia
-  diferencia_maxima <- max(diferencias)
-  
-  #-----------Calculamos la PACF con la funcion de R---------------#
-  pacf_r <- pacf(datos, lag.max = m, plot = FALSE)$acf
-  
-  # Creamos los datos para graficar la ACF
-  datos_acf <- data.frame(
-    rezago = 1:m,
-    valor = acf_manual
+  tibble(
+    Característica = c("Nombre", "Unidad", "Frecuencia",
+                       "Fecha inicial", "Fecha final",
+                       "T (observaciones)", "Mínimo",
+                       "Máximo", "Media"),
+    Valor = c(as.character(nombre),
+              as.character(if (is.null(unidad)) "sin unidad" else unidad),
+              frecuencia_label,
+              fecha_ini,
+              fecha_fin,
+              as.character(length(val)),
+              as.character(round(min(val, na.rm = TRUE), 2)),
+              as.character(round(max(val, na.rm = TRUE), 2)),
+              as.character(round(mean(val, na.rm = TRUE), 2)))
   )
-  
-  # Creamos los datos para graficar la PACF
-  datos_pacf <- data.frame(
-    rezago = 1:m,
-    valor = as.numeric(pacf_r)
-  )
-  
-  # Calculamos la banda de confianza del 95 %
-  banda <- qnorm((1 + 0.95) / 2) / sqrt(T)
-  
-  # Funcion para crear los graficos ACF y PACF
-  graficar_correlacion <- function(datos, titulo, etiqueta_y) {
-    
-    ggplot(datos, aes(x = rezago, y = valor)) +
-      
-      # Barras verticales
-      geom_segment(
-        aes(xend = rezago, yend = 0)
-      ) +
-      
-      # Linea central
-      geom_hline(yintercept = 0) +
-      
-      # Banda superior
-      geom_hline(
-        yintercept = banda,
-        linetype = "dashed"
-      ) +
-      
-      # Banda inferior
-      geom_hline(
-        yintercept = -banda,
-        linetype = "dashed"
-      ) +
-      
-      labs(
-        title = titulo,
-        x = "Rezago",
-        y = etiqueta_y
-      ) +
-      
-      theme_minimal()
-  }
-  
-  # Grafico de la ACF
-  grafico_acf <- graficar_correlacion(
-    datos_acf,
-    "Función de Autocorrelación (ACF)",
-    "ACF"
-  )
-  
-  # Grafico de la PACF
-  grafico_pacf <- graficar_correlacion(
-    datos_pacf,
-    "Función de Autocorrelación Parcial (PACF)",
-    "PACF"
-  )
-  
-  # Unimos los graficos
-  panel <- grafico_acf / grafico_pacf
-  
-  return(list(acf =acf_manual, panel = panel,diferencia_maxima= diferencia_maxima))
-  
 }
 
 ```
+
 
 # Serie 1
 
@@ -300,9 +219,33 @@ Serie_1 <- leer_serie("../datos/ST4HTU-serie-1.csv", "Red de Salud de Valdeflore
 
 ```
 
+
+## 1 ficha tecnica a
+
+
 ```{r}
 
-graficar_serie(Serie_1, "pacientes_original", mostrar_puntos = FALSE)
+ficha_st1 <- crear_ficha(Serie_1, "Pacientes promedio", " # de pacientes")
+
+tabla_ficha1 <- kable(ficha_st1, booktabs = TRUE, align = c("l", "l"),
+      caption = "Ficha técnica - Serie 1") |>
+  kable_styling(latex_options = c("hold_position"),
+                full_width = FALSE)
+tabla_ficha1
+
+```
+
+## 2 contexto b
+
+
+
+## 3 Escala y estabilizacion
+
+### a
+
+```{r}
+
+graficar_serie(Serie_1, "Pacientes en programa de ENF. cronicas", mostrar_puntos = FALSE)
 
 ```
 
@@ -310,7 +253,386 @@ graficar_serie(Serie_1, "pacientes_original", mostrar_puntos = FALSE)
 correlograma(Serie_1)
 ```
 
-## transformacion
+```{r}
+
+disp_st1 <- pendiente_dispersion(Serie_1, k = 5)   
+
+cat("Pendiente =", round(disp_st1$pendiente, 3),
+    "  λ = 1 − pendiente =", round(disp_st1$lambda, 3))
+
+ggplot(disp_st1$tabla, aes(x = nivel, y = desv_dif)) +
+  geom_point(size = 3, color = "#7AC5CD") +
+  geom_smooth(method = "lm", se = FALSE, color = "firebrick", linetype = "dashed") +
+  scale_x_log10() +
+  scale_y_log10() +
+  labs(title = "Dispersión de la primera diferencia contra el nivel (Serie 1)",
+       x = "Nivel medio del bloque (escala log)",
+       y = "Desv. estándar de la diferencia (escala log)",
+       caption = paste("Bloques:", nrow(disp_st1$tabla), "| Observaciones:",
+                       nrow(Serie_1))) +
+  theme_minimal()
+
+```
+
+### b perfil log
+
+```{r}
+
+res_lambda <- perfil_lambda(Serie_1)     # gráfico del perfil con jacobiano
+cat("λ̂ =", res_lambda$lambda_optimo,
+    "  IC 95 % = [", round(res_lambda$ic_95[1], 2), ",",
+    round(res_lambda$ic_95[2], 2), "]\n")
+
+# Valores "simples" dentro del IC
+candidatos_lambda <- c(-1, -0.5, 0, 0.5, 1)
+candidatos_lambda[candidatos_lambda >= res_lambda$ic_95[1] &
+                  candidatos_lambda <= res_lambda$ic_95[2]]
+
+# Valores no positivos: la familia Box-Cox exige Z > 0
+any(Serie_1$y <= 0)
+
+
+
+```
+```{r}
+lambda_st1 <- 0.75           # sección 3(b): valor redondeado dentro del IC del 95 %
+```
+
+
+### c Transformada y diferenciada
+
+
+```{r}
+
+gZ_st1 <- boxcox_tr(Serie_1$y, lambda_st1)
+
+Serie_1_g <- boxcox_tr(Serie_1, lambda_st1)
+attr(Serie_1_g, "unidad") <- paste0("g(Z) con λ = ", lambda_st1)
+graficar_serie(Serie_1_g, "Serie transformada g(Z_t)", mostrar_puntos = FALSE)
+
+# Crecimiento porcentual aproximado: 100 ∇ ln Z_t frente al cambio porcentual exacto
+cmp_crec <- data.frame(
+  aprox_log  = 100 * diff(log(Serie_1$y)),
+  exacto_pct = 100 * diff(Serie_1$y) / head(Serie_1$y, -1)
+)
+summary(cmp_crec)
+
+```
+
+## 4 orden de integracion
+
+### a
+
+```{r}
+
+niveles_st1 <- list(
+  "g(Z_t)"    = gZ_st1,
+  "∇ g(Z_t)"  = diferenciar(gZ_st1, 1),
+  "∇² g(Z_t)" = diferenciar(gZ_st1, 2)
+)
+
+tabla_var_st1 <- data.frame(
+  serie    = names(niveles_st1),
+  n        = unname(sapply(niveles_st1, length)),
+  varianza = unname(sapply(niveles_st1, var)),
+  r1       = unname(sapply(niveles_st1, function(v)
+               stats::acf(v, lag.max = 1, plot = FALSE)$acf[2]))
+)
+kable(tabla_var_st1, digits = 4, booktabs = TRUE,
+      caption = "Varianza y r₁ de g(Z_t) y sus diferencias") |>
+  kable_styling(latex_options = "hold_position")
+
+op <- par(mfrow = c(1, 3))
+for (nm in names(niveles_st1)) stats::acf(niveles_st1[[nm]], lag.max = 24, main = nm)
+par(op)
+
+```
+
+### b dickye fuller aumentada
+
+```{r}
+
+# Paso 0: especificación determinista según el gráfico y la regresión sobre el tiempo
+t_st1 <- seq_along(gZ_st1)
+summary(lm(gZ_st1 ~ t_st1))$coefficients
+
+# Número máximo de rezagos: regla de Schwert (1989)
+pmax_st1 <- floor(12 * (length(gZ_st1) / 100)^(1 / 4))
+
+# Paso 1: g(Z_t)
+df_nivel <- tabla_df_secuencial(gZ_st1, pmax = pmax_st1, criterio = "AIC")
+df_nivel
+
+# Paso 2: primera diferencia
+df_dif1 <- tabla_df_secuencial(diferenciar(gZ_st1, 1), pmax = pmax_st1, criterio = "AIC")
+df_dif1
+
+# Paso 3: segunda diferencia, solo si la primera no es estacionaria
+df_dif2 <- tabla_df_secuencial(diferenciar(gZ_st1, 2), pmax = pmax_st1, criterio = "AIC")
+df_dif2
+
+
+d_st1      <- 2           # sección 4(b): número de diferencias
+espec_st1  <- "trend"     # sección 4(b): "none", "drift" o "trend"
+
+
+```
+
+
+### c recta vs diferencia
+
+
+```{r}
+
+# Decisión de la prueba con tendencia sobre g(Z)
+if (df_nivel$rechaza_H0[1]) {
+  cat("Rechaza raíz unitaria con tendencia: estacionaria alrededor de una recta\n")
+} else {
+  cat("No rechaza con tendencia: tendencia estocástica, diferenciar\n")
+}
+
+# Si es estacionaria alrededor de la recta: residuo de la regresión sobre t
+if (espec_st1 == "trend") {
+  ajuste_recta_st1 <- lm(gZ_st1 ~ t_st1)
+  W_recta_st1      <- resid(ajuste_recta_st1)
+}
+
+# Alternativa que NO se elige: diferenciar una serie trend-stationary
+diff_alt_st1 <- diferenciar(gZ_st1, 1)
+c(sd_recta = sd(resid(lm(gZ_st1 ~ t_st1))), sd_dif = sd(diff_alt_st1))
+
+```
+### d constante serie ya diferenciada
+
+```{r}
+
+W_dif_st1 <- diferenciar(gZ_st1, d_st1)
+mu_hat    <- mean(W_dif_st1)
+N_w       <- length(W_dif_st1)
+L_nw      <- floor(4 * (N_w / 100)^(2 / 9))
+se_nw     <- se_media_nw(W_dif_st1, L_nw)
+t_mu      <- mu_hat / se_nw
+p_mu      <- 2 * pt(-abs(t_mu), df = N_w - 1)
+
+c(media = mu_hat, EE_NW = se_nw, L = L_nw, t = t_mu, p_valor = p_mu)
+
+# Lectura en unidades del problema (si λ = 0): crecimiento mensual medio en %
+100 * mu_hat
+
+```
+## 5 idetificacion
+
+### a acf, pacf y EACF
+
+```{r}
+
+# W_t: residuo de la recta (si espec = "trend") o diferencia de g(Z_t)
+W_st1 <- if (espec_st1 == "trend") W_recta_st1 else W_dif_st1
+
+m_st1 <- 24                       # 2s con s = 12 (datos mensuales)
+id_st1 <- acf_pacf_muestral(W_st1, m = m_st1, titulo = "de W_t")
+
+# EACF con el contraste declarado TSA::eacf()
+TSA::eacf(W_st1, ar.max = 5, ma.max = 5)
+
+```
+
+### b candidatos
+
+```{r}
+
+# Candidatos según la lectura de la sección 5(a): AJUSTAR A LA LECTURA REAL
+candidatos_st1 <- list(
+  c(1, d_st1, 0),
+  c(0, d_st1, 1),
+  c(1, d_st1, 1)
+)
+
+ajustar_candidato <- function(z, orden, lambda, espec) {
+  args <- espec_args(espec, orden[2])
+  ajustar_modelo(z, orden = orden, lambda = lambda,
+                 constante = args$constante, tendencia = args$tendencia,
+                 metodo = "ML")
+}
+
+ajustes_st1 <- lapply(candidatos_st1, ajustar_candidato,
+                      z = Serie_1, lambda = lambda_st1, espec = espec_st1)
+
+# ajustes_st1
+
+```
+
+
+##  6 Estimacion t seleccion
+
+### a ML de cada candidato
+
+```{r}
+
+# Índice del candidato elegido: AJUSTAR A LA EVIDENCIA
+elegido_st1 <- 3
+orden_elegido <- candidatos_st1[[elegido_st1]]
+args_elegido  <- espec_args(espec_st1, d_st1)
+modelo_st1    <- ajustes_st1[[elegido_st1]]
+
+# Coeficientes con IC del 95 % y σ̂² de cada candidato
+lapply(ajustes_st1, function(a) {
+  list(sigma2 = a$sigma2, coeficientes = tabla_coef(a))
+})
+
+# Modelo en la notación del curso: signos de MA traducidos
+cf_st1    <- coef(modelo_st1$modelo)
+phi_st1   <- cf_st1[grep("^ar", names(cf_st1))]
+theta_st1 <- -cf_st1[grep("^ma", names(cf_st1))]   # R: 1+ma1 B; curso: 1−θ1 B
+
+mu_st1    <- if (d_st1 == 1) cf_st1["tendencia"] else cf_st1["intercept"]
+theta0_st1 <- if (espec_st1 == "drift") mu_st1 * (1 - sum(phi_st1)) else 0
+
+list(phi = phi_st1, theta = theta_st1, theta0 = theta0_st1)
+
+```
+
+
+### b Estimacion condicional
+
+```{r}
+
+ajuste_css_st1 <- ajustar_modelo(Serie_1, orden = orden_elegido, lambda = lambda_st1,
+                                 constante = args_elegido$constante,
+                                 tendencia = args_elegido$tendencia, metodo = "CSS")
+
+comparacion_st1 <- data.frame(
+  parametro = rownames(modelo_st1$coeficientes),
+  ML  = unname(modelo_st1$coeficientes[, "estimacion"]),
+  CSS = unname(ajuste_css_st1$coeficientes[rownames(modelo_st1$coeficientes), "estimacion"])
+)
+comparacion_st1$diferencia <- comparacion_st1$ML - comparacion_st1$CSS
+comparacion_st1
+
+```
+
+### c comparacion por AIC,BIC
+
+```{r}
+
+# AIC() y BIC() de R: todos los candidatos con ML exacta, mismo d y misma especificación
+tabla_crit_st1 <- do.call(rbind, lapply(seq_along(ajustes_st1), function(i) {
+  mod <- ajustes_st1[[i]]$modelo
+  data.frame(
+    modelo = paste0("ARIMA(", paste(candidatos_st1[[i]], collapse = ","), ")"),
+    sigma2 = ajustes_st1[[i]]$sigma2,
+    logLik = as.numeric(logLik(mod)),
+    AIC    = AIC(mod),
+    BIC    = BIC(mod)
+  )
+}))
+tabla_crit_st1
+
+```
+
+
+### d contraste
+
+```{r}
+
+# Contraste declarado: se aplica después de la identificación propia
+auto_st1 <- forecast::auto.arima(gZ_st1,
+                                 test = "kpss",          # prueba para decidir d
+                                 ic = "bic",             # mismo criterio que SBC
+                                 seasonal = FALSE,
+                                 stepwise = FALSE,       # búsqueda exhaustiva
+                                 approximation = FALSE)  # ML exacta
+auto_st1
+forecast::arimaorder(auto_st1)
+
+
+```
+
+## 7 Seleccion del modelo
+
+### a raices
+
+```{r}
+
+raices_st1 <- raices_modelo(modelo_st1)     # dibuja las raíces inversas
+raices_st1[c("modulos_ar", "modulos_ma", "estacionario", "invertible")]
+
+# Posibles factores comunes: distancias entre raíces AR y MA
+if (length(raices_st1$raices_ar) > 0 && length(raices_st1$raices_ma) > 0) {
+  round(abs(outer(raices_st1$raices_ar, raices_st1$raices_ma, "-")), 3)
+}
+
+```
+
+### b prueba t
+
+```{r}
+
+tabla_t_st1 <- tabla_coef(modelo_st1)
+tabla_t_st1$t_valor <- tabla_t_st1$estimacion / tabla_t_st1$error_estandar
+tabla_t_st1$p_valor <- 2 * pnorm(-abs(tabla_t_st1$t_valor))
+tabla_t_st1
+
+# Matriz de correlaciones de los estimadores
+round(cov2cor(modelo_st1$matriz_covarianzas), 3)
+
+```
+
+### c Residuos ACF,PACF y ljun-box
+
+```{r}
+
+res_st1 <- modelo_st1$residuos
+
+plot(res_st1, type = "l", main = "Residuos del modelo elegido",
+     xlab = "t", ylab = "residuo")
+abline(h = 0, lty = 2)
+
+id_res_st1 <- acf_pacf_muestral(res_st1, m = 24, titulo = "de los residuos")
+
+ljung_st1 <- ljung_box(modelo_st1, rezagos = c(6, 12, 18, 24))
+ljung_st1
+
+```
+
+### d normalidad de residuous
+
+```{r}
+
+qqnorm(res_st1, main = "Gráfico cuantil-cuantil de los residuos")
+qqline(res_st1, col = "firebrick")
+
+jb_st1 <- jarque_bera(res_st1)
+jb_st1
+
+# Verificación con tseries (opcional)
+tseries::jarque.bera.test(res_st1)
+
+```
+
+
+### e sobreajuste
+
+```{r}
+
+sobre_st1 <- sobreajuste(Serie_1, modelo_st1, lambda = lambda_st1,
+                         constante = args_elegido$constante,
+                         tendencia = args_elegido$tendencia)
+sobre_st1$parametros_extra
+sobre_st1$criterios
+
+```
+
+
+### f ciclo
+
+```{r}
+
+# Chequeos de todos los candidatos: Ljung-Box por candidato
+lapply(ajustes_st1, ljung_box, rezagos = c(6, 12, 18, 24))
+
+```
+
 
 # Serie 2
 

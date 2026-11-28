@@ -1,12 +1,26 @@
 ---
 title: "Trabajo 2"
 subtitle: "Series de Tiempo — Pregrado en Estadística, UNAL Medellín"
-author: "Sebastian Valencia Botero ; Julian Esteban Ariza Caro "
+author:
+  - "Julian Esteban Ariza Caro"
+  - "Sebastián Valencia Botero"
+institute: "Departamento de Estadística - UNALMED"
 date: today
+lang: es
+toc: true
+toc-title: "Contenido"
+number-sections: true
+link-citations: true
 format:
+  html:
+    df-print: paged
+    code-fold: show
+    code-tools: true
+    code-summary: "Mostrar/ocultar código"
+    embed-resources: true
+    theme: flatly
+    smooth-scroll: true
   pdf:
-    number-sections: true
-    toc: true
     fig-width: 6
     fig-height: 4
     geometry:
@@ -19,8 +33,14 @@ format:
         \usepackage{xcolor}
         \usepackage{array}
         \usepackage{graphicx}
-editor: visual
-echo: False
+knitr:
+  opts_chunk:
+    fig.path: "figs/"
+editor_options:
+  chunk_output_type: inline
+editor:
+  markdown:
+    wrap: 72
 ---
 
 ```{r, include=FALSE}
@@ -43,7 +63,6 @@ library(stats)
 
 ```
 
-
 ```{r, include=FALSE}
 
 
@@ -56,8 +75,6 @@ source("../R/05-validacion.R")
 
 
 ```
-
-
 
 ```{r, include=FALSE}
 # funciones Axiliareas
@@ -274,9 +291,7 @@ correlograma <- function(datos,m = NULL){
 
 ```
 
-
 # Serie 1
-
 
 ```{r}
 # Pacientes original
@@ -284,7 +299,6 @@ correlograma <- function(datos,m = NULL){
 Serie_1 <- leer_serie("../datos/ST4HTU-serie-1.csv", "Red de Salud de Valdeflores", "Pacientes")
 
 ```
-
 
 ```{r}
 
@@ -298,7 +312,6 @@ correlograma(Serie_1)
 
 ## transformacion
 
-
 # Serie 2
 
 ```{r}
@@ -307,7 +320,6 @@ correlograma(Serie_1)
 Serie_2 <- leer_serie("../datos/ST4HTU-serie-2.csv", "Red de Salud de Valdeflores", "Dias de espera promedio")
 
 ```
-
 
 ```{r}
 
@@ -318,7 +330,6 @@ graficar_serie(Serie_2, "Dias de espera promedio", mostrar_puntos = FALSE)
 ```{r}
 correlograma(Serie_2)
 ```
-
 
 # Serie 3
 
